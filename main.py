@@ -8,10 +8,13 @@ import json
 # 1. Setup Gemini OCR using Streamlit Secrets
 # Ensure you have GEMINI_API_KEY in your Streamlit Cloud Secrets
 try:
+    # Try the standard 2026 naming convention
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel('gemini-1.5-flash')
-except Exception as e:
-    st.error("Secrets Configuration Error: Please check your GEMINI_API_KEY in Streamlit Settings.")
+except:
+    # Fallback for specific API versions
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 def process_document(uploaded_file):
     """
