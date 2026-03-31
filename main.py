@@ -7,45 +7,34 @@ import json
 
 # 1. Setup Gemini OCR using Streamlit Secrets
 # Ensure you have GEMINI_API_KEY in your Streamlit Cloud Secrets
-try:
-    # Try the standard 2026 naming convention
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('gemini-1.5-flash')
-except:
-    # Fallback for specific API versions
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('models/gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
+
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 def process_document(uploaded_file):
-    """
-    Handles both Images and PDFs by passing bytes and MIME type to Gemini.
-    """
-    prompt = """Analyze this medical document (Prescription or Lab Report). 
-    1. Identify all medications mentioned.
-    2. Extract: Tablet Name, Dosage (Morning/Afternoon/Night), and Duration (days).
-    3. If it's a lab report, summarize key abnormal findings.
+    # Try the preferred model first
+    model_names = ['gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-2.0-flash']
     
-    Return ONLY a clean JSON list for medications: 
-    [{"name": "...", "m": true, "a": false, "n": true, "days": 5}]
-    If no medications are found, return an empty list []."""
-    
-    # Get bytes and MIME type
-    doc_data = uploaded_file.getvalue()
-    mime_type = uploaded_file.type
-    
-    # Generate content using multimodal capabilities
-    response = model.generate_content([
-        {'mime_type': mime_type, 'data': doc_data},
-        prompt
-    ])
-    
-    # Clean and parse JSON
-    try:
-        clean_json = response.text.replace('```json', '').replace('```', '').strip()
-        return json.loads(clean_json)
-    except Exception as e:
-        st.error("AI Parsing Error: The document structure was complex. Please try a clearer photo.")
-        return []
+    for m_name in model_names:
+        try:
+            curr_model = genai.GenerativeModel(m_name)
+            doc_data = uploaded_file.getvalue()
+            mime_type = uploaded_file.type
+            
+            response = curr_model.generate_content([
+                {'mime_type': mime_type, 'data': doc_data},
+                "Extract medication schedule in JSON: [{'name': '...', 'm': true, 'a': false, 'n': true, 'days': 5}]"
+            ])
+            
+            clean_json = response.text.replace('```json', '').replace('```', '').strip()
+            return json.loads(clean_json)
+        except Exception as e:
+            if "404" in str(e):
+                continue # Try the next model in the list
+            else:
+                st.error(f"AI Error: {e}")
+                break
+    return []
 
 def generate_ics(dosage_list, start_date):
     cal = Calendar()
