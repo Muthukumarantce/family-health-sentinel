@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from ics import Calendar, Event
-from datetime import datetime, timedelta
+from datetime import datetime, date, time, timedelta
 import PIL.Image
 import json
 import google.generativeai as genai
@@ -14,20 +14,43 @@ except:
     st.error("API Key missing in Secrets.")
 
 # --- Helper Functions ---
+
 def generate_ics(df, start_date):
     cal = Calendar()
-    for _, row in df.iterrows():
-        days = int(row.get('Days', 0))
-        for day in range(days):
-            current_day = start_date + timedelta(days=day)
-            if row.get('Morning'):
-                cal.events.add(Event(name=f"Take {row['Tablet Name']} (Morning)", begin=current_day.replace(hour=8, minute=0)))
-            if row.get('Afternoon'):
-                cal.events.add(Event(name=f"Take {row['Tablet Name']} (Afternoon)", begin=current_day.replace(hour=14, minute=0)))
-            if row.get('Night'):
-                cal.events.add(Event(name=f"Take {row['Tablet Name']} (Night)", begin=current_day.replace(hour=20, minute=0)))
-    return cal.serialize()
+    
+    # Ensure start_date is a date object (Streamlit date_input can return date)
+    # If it's already a datetime, we convert to date for the combine function
+    if isinstance(start_date, datetime):
+        base_date = start_date.date()
+    else:
+        base_date = start_date
 
+    for _, row in df.iterrows():
+        try:
+            days = int(row.get('Days', 0))
+        except (ValueError, TypeError):
+            continue
+
+        for day_offset in range(days):
+            current_day = base_date + timedelta(days=day_offset)
+            
+            # Use datetime.combine to safely add hours/minutes to a date
+            if row.get('Morning'):
+                morning_time = time(8, 0) # 8:00 AM
+                morning_dt = datetime.combine(current_day, morning_time)
+                cal.events.add(Event(name=f"Take {row['Tablet Name']} (Morning)", begin=morning_dt))
+            
+            if row.get('Afternoon'):
+                afternoon_time = time(14, 0) # 2:00 PM
+                afternoon_dt = datetime.combine(current_day, afternoon_time)
+                cal.events.add(Event(name=f"Take {row['Tablet Name']} (Afternoon)", begin=afternoon_dt))
+            
+            if row.get('Night'):
+                night_time = time(20, 0) # 8:00 PM
+                night_dt = datetime.combine(current_day, night_time)
+                cal.events.add(Event(name=f"Take {row['Tablet Name']} (Night)", begin=night_dt))
+                
+    return cal.serialize()
 # --- UI Setup ---
 st.set_page_config(page_title="Family Health Sentinel", layout="wide")
 st.title("🏥 Family Health Sentinel")
